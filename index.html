@@ -1905,10 +1905,10 @@
         }
         
         // ============================================
-        // MANEJO DE AUTENTICACIÓN
+        // MANEJO DE AUTENTICACIÓN CORREGIDO
         // ============================================
         
-        // Manejar inicio de sesión
+        // Manejar inicio de sesión - VERSIÓN CORREGIDA
         async function handleLogin(e) {
             e.preventDefault();
             
@@ -1917,17 +1917,17 @@
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
-            // Verificar credenciales fijas
-            if (username !== FIXED_USERNAME || password !== FIXED_PASSWORD) {
+            // Verificar primero el nombre de usuario
+            if (username !== FIXED_USERNAME) {
                 errorMessage.style.display = 'block';
-                errorMessage.textContent = 'Usuario o contraseña incorrectos';
+                errorMessage.textContent = 'Usuario incorrecto';
                 recordFailedAttempt();
                 document.getElementById('password').value = '';
                 return;
             }
             
             try {
-                // Iniciar sesión con Firebase usando el email fijo
+                // Intentar autenticar con Firebase usando el email fijo
                 const userCredential = await auth.signInWithEmailAndPassword(FIXED_EMAIL, password);
                 currentUser = userCredential.user.uid;
                 localStorage.setItem('currentUser', currentUser);
@@ -1953,13 +1953,36 @@
                 }
                 
             } catch (error) {
-                // Si hay error de autenticación con Firebase, intentar crear el usuario
-                if (error.code === 'auth/user-not-found') {
-                    // Crear usuario fijo si no existe
-                    await createFixedUser();
-                    
-                    // Intentar login nuevamente
+                // Si hay error de autenticación, verificar si es la contraseña inicial
+                if (error.code === 'auth/wrong-password' && password === FIXED_PASSWORD) {
+                    // Intentar crear el usuario si no existe, o usar la contraseña inicial
                     try {
+                        // Primero intentar crear el usuario si no existe
+                        await createFixedUser();
+                        
+                        // Intentar login con las credenciales iniciales
+                        const userCredential = await auth.signInWithEmailAndPassword(FIXED_EMAIL, FIXED_PASSWORD);
+                        currentUser = userCredential.user.uid;
+                        localStorage.setItem('currentUser', currentUser);
+                        localStorage.setItem('username', FIXED_USERNAME);
+                        
+                        showApp();
+                        errorMessage.style.display = 'none';
+                        resetFailedAttempts();
+                        await loadObrasFromFirebase();
+                        await showPasswordExpiryWarning(currentUser);
+                        
+                    } catch (secondError) {
+                        errorMessage.style.display = 'block';
+                        errorMessage.textContent = 'Error de autenticación. Contacta al administrador.';
+                        recordFailedAttempt();
+                    }
+                } else if (error.code === 'auth/user-not-found') {
+                    // Crear usuario si no existe
+                    try {
+                        await createFixedUser();
+                        
+                        // Intentar login nuevamente
                         const userCredential = await auth.signInWithEmailAndPassword(FIXED_EMAIL, password);
                         currentUser = userCredential.user.uid;
                         localStorage.setItem('currentUser', currentUser);
@@ -1975,7 +1998,7 @@
                     }
                 } else {
                     errorMessage.style.display = 'block';
-                    errorMessage.textContent = 'Error de autenticación';
+                    errorMessage.textContent = 'Contraseña incorrecta';
                     recordFailedAttempt();
                 }
                 document.getElementById('password').value = '';

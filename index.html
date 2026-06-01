@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Control de Obras Jerárquico</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v6.4.0/css/all.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    
+    <style>
+        /* ========== ESTILOS (resumidos pero completos) ========== */
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --task-primary: #3498db;
+            --task-secondary: #9b59b6;
+            --edit-color: #f39c12;
+            --add-subtask: #2ecc71;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f5f7fa; color: #333; line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        }
+        .login-box {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+        }
+        .login-box h1 { text-align: center; color: var(--primary-color); margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark-color); }
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn:hover { background-color: #2980b9; }
+        .error-message {
+            color: var(--accent-color);
+            background-color: #fde8e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        .app-container { display: none; }
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-info { display: flex; align-items: center; gap: 15px; }
+        .logout-btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+        @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        .card h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--light-color);
+        }
+        .obra-item {
+            background-color: var(--light-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 5px solid var(--secondary-color);
+        }
+        .obra-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .obra-title { font-weight: 700; font-size: 18px; color: var(--primary-color); }
+        .obra-status {
+            background-color: var(--warning-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .obra-status.completed { background-color: var(--success-color); }
+        .obra-description { color: #666; margin-bottom: 15px; }
+        .obra-details { display: flex; flex-direction: column; gap: 5px; color: #666; margin-bottom: 15px; font-size: 14px; }
+        .obra-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-primary { background-color: var(--secondary-color); color: white; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-danger { background-color: var(--accent-color); color: white; }
+        .btn-info { background-color: var(--task-secondary); color: white; }
+        .btn-edit { background-color: var(--edit-color); color: white; }
+        .btn-subtask { background-color: var(--add-subtask); color: white; }
+        .task-list { margin-top: 20px; }
+        .task-item {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 5px solid var(--task-primary);
+        }
+        .task-item.secondary { margin-left: 30px; border-left-color: var(--task-secondary); background-color: #f9f9f9; }
+        .task-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .task-title { font-weight: 700; color: var(--task-primary); }
+        .task-status {
+            background-color: #eee;
+            color: #666;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        .task-status.completed { background-color: var(--success-color); color: white; }
+        .task-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .empty-message { text-align: center; color: #888; font-style: italic; padding: 20px; }
+        footer { text-align: center; margin-top: 40px; padding: 20px; color: #777; border-top: 1px solid #eee; }
+        .no-obra-selected { text-align: center; padding: 40px 20px; color: #888; }
+        .no-obra-selected i { font-size: 48px; margin-bottom: 15px; color: #ddd; }
+        .modal-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            display: none;
+        }
+        .modal {
+            background-color: white;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 30px;
+        }
+        .modal-header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #eee; }
+        .close-modal { background: none; border: none; font-size: 24px; cursor: pointer; }
+        .summary-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 15px; margin-bottom: 30px; }
+        .stat-card { background-color: #f5f5f5; border-radius: 8px; padding: 20px; text-align: center; }
+        .task-progress-bar { height: 8px; background-color: #eee; border-radius: 4px; margin: 10px 0; overflow: hidden; }
+        .task-progress-fill { height: 100%; background-color: var(--success-color); }
+        .task-type-selector { display: flex; gap: 10px; margin-bottom: 15px; }
+        .type-selector-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            background-color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .type-selector-btn.active { background-color: var(--secondary-color); color: white; border-color: var(--secondary-color); }
+        .form-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .cancel-btn { background-color: #95a5a6; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        .sync-indicator {
+            position: fixed; bottom: 20px; right: 20px;
+            background-color: var(--secondary-color); color: white;
+            padding: 8px 15px; border-radius: 20px; font-size: 12px;
+            display: none; align-items: center; gap: 8px; z-index: 1001;
+        }
+        .firebase-loading { text-align: center; padding: 20px; color: #666; }
+        .attempts-warning { color: #e74c3c; font-size: 12px; text-align: center; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <!-- Pantalla de login -->
+    <div class="login-container" id="loginScreen">
+        <div class="login-box">
+            <h1><i class="fas fa-hard-hat"></i> Control de Obras</h1>
+            <div class="firebase-loading" id="firebaseLoading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Conectando con Firebase...</p>
+            </div>
+            <div class="error-message" id="errorMessage">Usuario o contraseña incorrectos</div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Usuario</label>
+                    <input type="text" id="username" class="form-control" placeholder="Ingrese su usuario" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" class="form-control" placeholder="Ingrese su contraseña" required>
+                </div>
+                <div class="attempts-warning" id="attemptsWarning">
+                    Intentos restantes: <span id="attemptsLeft">3</span>
+                </div>
+                <button type="submit" class="btn">Iniciar Sesión</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Aplicación principal -->
+    <div class="app-container" id="appScreen">
+        <header>
+            <div class="container header-content">
+                <h1><i class="fas fa-hard-hat"></i> Sistema de Control de Obras Jerárquico</h1>
+                <div class="user-info">
+                    <span id="loggedUser">Usuario</span>
+                    <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</button>
+                </div>
+            </div>
+        </header>
+        <div class="container">
+            <div class="main-content">
+                <div class="left-panel">
+                    <div class="card">
+                        <h2 id="obraFormTitle"><i class="fas fa-plus-circle"></i> Crear Nueva Obra</h2>
+                        <form id="obraForm">
+                            <input type="hidden" id="editingObraId" value="">
+                            <input type="text" id="obraNombre" class="form-control" placeholder="Nombre de la obra" required>
+                            <input type="text" id="obraUbicacion" class="form-control" placeholder="Ubicación" required>
+                            <textarea id="obraDescripcion" class="form-control" placeholder="Descripción" rows="3"></textarea>
+                            <input type="text" id="obraCliente" class="form-control" placeholder="Cliente" required>
+                            <input type="date" id="obraFechaInicio" class="form-control" required>
+                            <input type="date" id="obraFechaFin" class="form-control">
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="submitObraBtn">Crear Obra</button>
+                                <button type="button" class="cancel-btn" id="cancelObraEditBtn" style="display: none;">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="card">
+                        <h2><i class="fas fa-list"></i> Obras Activas</h2>
+                        <div id="obrasList"><div class="empty-message" id="loadingObras"><i class="fas fa-spinner fa-spin"></i><p>Cargando obras...</p></div></div>
+                    </div>
+                </div>
+                <div class="right-panel">
+                    <div class="card">
+                        <h2 id="selectedObraTitle"><i class="fas fa-tasks"></i> Tareas de la Obra</h2>
+                        <div id="selectedObraContent"><div class="no-obra-selected"><i class="fas fa-clipboard-list"></i><h3>No hay obra seleccionada</h3></div></div>
+                    </div>
+                    <div class="card" id="taskFormContainer" style="display: none;">
+                        <div class="form-header"><div class="form-title" id="formTitle"><i class="fas fa-plus"></i> Agregar Tarea</div><div class="edit-mode-badge" id="editModeBadge" style="display: none;">Editando</div></div>
+                        <div class="task-type-selector">
+                            <button type="button" class="type-selector-btn active" data-type="primary" id="btnPrimaryTask">Tarea Principal</button>
+                            <button type="button" class="type-selector-btn" data-type="secondary" id="btnSecondaryTask">Tarea Secundaria</button>
+                        </div>
+                        <form id="taskForm">
+                            <input type="hidden" id="editingTaskId" value="">
+                            <input type="hidden" id="taskType" value="primary">
+                            <div id="parentTaskContainer" style="display: none; margin-bottom: 15px;">
+                                <label for="parentTask">Tarea Principal Asociada:</label>
+                                <select id="parentTask" class="form-control"></select>
+                            </div>
+                            <input type="text" id="taskNombre" class="form-control" placeholder="Nombre de la tarea" required>
+                            <textarea id="taskDescripcion" class="form-control" placeholder="Descripción" rows="2"></textarea>
+                            <input type="text" id="taskResponsable" class="form-control" placeholder="Responsable">
+                            <input type="date" id="taskFecha" class="form-control">
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-success" id="submitTaskBtn">Agregar Tarea</button>
+                                <button type="button" class="cancel-btn" id="cancelEditBtn" style="display: none;">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <footer><p>Sistema de Control de Obras Jerárquico &copy; 2024 | Firebase</p></footer>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="summaryModal"><div class="modal"><div class="modal-header"><h2>Resumen de Obra</h2><button class="close-modal">&times;</button></div><div id="summaryContent"></div><div class="export-options"><button class="export-btn txt" id="exportTxtBtn">Exportar a TXT</button><button class="export-btn" id="copyToClipboardBtn">Copiar</button></div></div></div>
+    <div class="sync-indicator" id="syncIndicator"><i class="fas fa-sync-alt fa-spin"></i><span>Sincronizando...</span></div>
+
+    <script>
+        // ================= CONFIGURACIÓN FIREBASE =================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDR-_usK-qB61rRTi69urK_-MGFFC9RgzA",
+            authDomain: "trabajos-irisnor.firebaseapp.com",
+            projectId: "trabajos-irisnor",
+            storageBucket: "trabajos-irisnor.firebasestorage.app",
+            messagingSenderId: "82950754942",
+            appId: "1:82950754942:web:4ca9c626c5721c5abd7e2f",
+            measurementId: "G-RHSB1XQM9N"
+        };
+
+        let db, obrasCollection, obrasListener;
+        let isFirebaseAvailable = false;
+
+        // Inicializar Firebase con manejo de errores
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            obrasCollection = db.collection('obras');
+            isFirebaseAvailable = true;
+            console.log('✅ Firebase inicializado correctamente');
+            document.getElementById('firebaseLoading').style.display = 'none';
+        } catch (error) {
+            console.error('❌ Error inicializando Firebase:', error);
+            document.getElementById('firebaseLoading').innerHTML = '<p style="color:red;">Error conectando con Firebase. Usando almacenamiento local.</p>';
+            isFirebaseAvailable = false;
+        }
+
+        // Credenciales (cámbialas aquí)
+        const validCredentials = { username: 'IRISNOR', password: 'IRISNOR2024' };
+
+        // ---------- VARIABLES GLOBALES ----------
+        let currentUser = null;
+        let obras = [];
+        let selectedObraId = null;
+        let currentTaskType = 'primary';
+        let isEditingTask = false;
+        let isEditingObra = false;
+        let selectedParentTaskId = null;
+        let sessionCheckInterval = null;
+
+        // Control de intentos fallidos
+        let failedAttempts = parseInt(localStorage.getItem('failedAttempts')) || 0;
+        const maxAttempts = 3;
+        const lockoutTime = 5 * 60 * 1000;
+        let lockoutUntil = parseInt(localStorage.getItem('lockoutUntil')) || 0;
+
+        // Referencias DOM
+        const loginScreen = document.getElementById('loginScreen');
+        const appScreen = document.getElementById('appScreen');
+        const loginForm = document.getElementById('loginForm');
+        const errorMessage = document.getElementById('errorMessage');
+        const attemptsWarning = document.getElementById('attemptsWarning');
+        const attemptsLeftSpan = document.getElementById('attemptsLeft');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loggedUserSpan = document.getElementById('loggedUser');
+        const obraForm = document.getElementById('obraForm');
+        const taskForm = document.getElementById('taskForm');
+        const obrasList = document.getElementById('obrasList');
+        const selectedObraTitle = document.getElementById('selectedObraTitle');
+        const selectedObraContent = document.getElementById('selectedObraContent');
+        const taskFormContainer = document.getElementById('taskFormContainer');
+        const syncIndicator = document.getElementById('syncIndicator');
+        const btnPrimaryTask = document.getElementById('btnPrimaryTask');
+        const btnSecondaryTask = document.getElementById('btnSecondaryTask');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const parentTaskSelect = document.getElementById('parentTask');
+        const taskTypeInput = document.getElementById('taskType');
+        const editingObraIdInput = document.getElementById('editingObraId');
+        const editingTaskIdInput = document.getElementById('editingTaskId');
+        const submitObraBtn = document.getElementById('submitObraBtn');
+        const submitTaskBtn = document.getElementById('submitTaskBtn');
+        const obraFormTitle = document.getElementById('obraFormTitle');
+        const cancelObraEditBtn = document.getElementById('cancelObraEditBtn');
+        const formTitle = document.getElementById('formTitle');
+        const editModeBadge = document.getElementById('editModeBadge');
+        const summaryModal = document.getElementById('summaryModal');
+        const closeModal = document.querySelector('.close-modal');
+        const exportTxtBtn = document.getElementById('exportTxtBtn');
+        const copyToClipboardBtn = document.getElementById('copyToClipboardBtn');
+
+        // ================= FUNCIÓN DE CIERRE REMOTO (VERSIÓN) =================
+        async function getRemoteVersion() {
+            if (!isFirebaseAvailable || !db) return null;
+            try {
+                const doc = await db.collection('config').doc('sesiones').get();
+                return doc.exists ? doc.data().version : null;
+            } catch(e) { console.warn('Error leyendo versión:', e); return null; }
+        }
+
+        async function checkAndForceLogout() {
+            if (!currentUser) return;
+            const remote = await getRemoteVersion();
+            if (remote === null) return;
+            const local = localStorage.getItem('sessionVersion');
+            if (remote != local) {
+                console.log(`Versión remota ${remote} != local ${local}. Cerrando sesión.`);
+                alert('Tu sesión ha sido cerrada remotamente. Inicia sesión de nuevo.');
+                handleLogout();
+            }
+        }
+
+        async function saveSessionVersion() {
+            if (!isFirebaseAvailable) return;
+            try {
+                const configRef = db.collection('config').doc('sesiones');
+                const doc = await configRef.get();
+                let version = 1;
+                if (doc.exists) version = doc.data().version;
+                else await configRef.set({ version: 1 });
+                localStorage.setItem('sessionVersion', version);
+                console.log(`Versión de sesión guardada: ${version}`);
+            } catch(e) { console.warn('No se pudo guardar versión:', e); }
+        }
+
+        function startSessionCheck() {
+            if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+            sessionCheckInterval = setInterval(() => { if(currentUser) checkAndForceLogout(); }, 30000);
+        }
+        function stopSessionCheck() { if(sessionCheckInterval) clearInterval(sessionCheckInterval); sessionCheckInterval = null; }
+
+        // ================= FUNCIONES AUXILIARES =================
+        function checkLockout() {
+            const now = Date.now();
+            if (lockoutUntil > now) {
+                const min = Math.ceil((lockoutUntil-now)/60000);
+                alert(`Sistema bloqueado por ${min} minutos.`);
+                return true;
+            }
+            return false;
+        }
+        function resetFailedAttempts() {
+            failedAttempts = 0;
+            localStorage.removeItem('failedAttempts');
+            localStorage.removeItem('lockoutUntil');
+            if(attemptsWarning) attemptsWarning.style.display = 'none';
+        }
+        function recordFailedAttempt() {
+            failedAttempts++;
+            localStorage.setItem('failedAttempts', failedAttempts);
+            const left = maxAttempts - failedAttempts;
+            if(attemptsLeftSpan) attemptsLeftSpan.textContent = left;
+            if(left > 0 && attemptsWarning) {
+                attemptsWarning.style.display = 'block';
+                loginForm.classList.add('shake');
+                setTimeout(() => loginForm.classList.remove('shake'), 500);
+            }
+            if(failedAttempts >= maxAttempts) {
+                lockoutUntil = Date.now() + lockoutTime;
+                localStorage.setItem('lockoutUntil', lockoutUntil);
+                alert('Demasiados intentos fallidos. Bloqueado 5 minutos.');
+                if(attemptsWarning) attemptsWarning.textContent = 'Sistema bloqueado. Intente en 5 minutos.';
+            }
+        }
+        function getCurrentDate() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+        function formatDate(dateStr) {
+            if(!dateStr) return 'No especificada';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('es-ES');
+        }
+        function showSyncIndicator(msg, type='syncing') {
+            if(!syncIndicator) return;
+            syncIndicator.innerHTML = `<i class="fas fa-sync-alt ${type==='syncing'?'fa-spin':''}"></i><span>${msg}</span>`;
+            syncIndicator.className = `sync-indicator ${type}`;
+            syncIndicator.style.display = 'flex';
+            if(type !== 'syncing') setTimeout(() => syncIndicator.style.display = 'none', 3000);
+        }
+
+        // ================= CRUD OBRAS =================
+        function loadObrasFromFirebase() {
+            if(!isFirebaseAvailable || !obrasCollection) {
+                obras = JSON.parse(localStorage.getItem('obras')) || [];
+                renderObras();
+                return;
+            }
+            showSyncIndicator('Cargando obras...', 'syncing');
+            obrasListener = obrasCollection.onSnapshot(snapshot => {
+                obras = [];
+                snapshot.forEach(doc => {
+                    let o = doc.data();
+                    o.id = doc.id;
+                    obras.push(o);
+                });
+                renderObras();
+                showSyncIndicator('Obras actualizadas', 'success');
+                if(selectedObraId) renderObraDetails();
+            }, err => {
+                console.error('Error en snapshot:', err);
+                showSyncIndicator('Error cargando obras', 'error');
+                obras = JSON.parse(localStorage.getItem('obras')) || [];
+                renderObras();
+            });
+        }
+
+        async function saveObraToFirebase(obra, isNew=true) {
+            if(!isFirebaseAvailable || !obrasCollection) {
+                if(isNew) obras.push(obra);
+                localStorage.setItem('obras', JSON.stringify(obras));
+                return obra.id || Date.now().toString();
+            }
+            showSyncIndicator('Guardando...', 'syncing');
+            try {
+                if(isNew) {
+                    const ref = await obrasCollection.add(obra);
+                    obra.id = ref.id;
+                } else {
+                    await obrasCollection.doc(obra.id).update(obra);
+                }
+                showSyncIndicator('Guardado', 'success');
+                return obra.id;
+            } catch(e) {
+                console.error(e);
+                showSyncIndicator('Error guardando', 'error');
+                if(isNew) obras.push(obra);
+                localStorage.setItem('obras', JSON.stringify(obras));
+                return obra.id || Date.now().toString();
+            }
+        }
+
+        async function deleteObraFromFirebase(obraId) {
+            if(!isFirebaseAvailable || !obrasCollection) {
+                obras = obras.filter(o=>o.id!==obraId);
+                localStorage.setItem('obras', JSON.stringify(obras));
+                return true;
+            }
+            showSyncIndicator('Eliminando...', 'syncing');
+            try {
+                await obrasCollection.doc(obraId).delete();
+                showSyncIndicator('Eliminada', 'success');
+                return true;
+            } catch(e) {
+                console.error(e);
+                showSyncIndicator('Error eliminando', 'error');
+                obras = obras.filter(o=>o.id!==obraId);
+                localStorage.setItem('obras', JSON.stringify(obras));
+                return false;
+            }
+        }
+
+        // ================= LOGIN/LOGOUT =================
+        async function handleLogin(e) {
+            e.preventDefault();
+            if(checkLockout()) return;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            if(username === validCredentials.username && password === validCredentials.password) {
+                currentUser = username;
+                localStorage.setItem('currentUser', username);
+                await saveSessionVersion();  // guarda la versión actual
+                showApp();
+                errorMessage.style.display = 'none';
+                resetFailedAttempts();
+                startSessionCheck();
+                // Verificar inmediatamente si la versión ha cambiado (por si acaso)
+                checkAndForceLogout();
+            } else {
+                errorMessage.style.display = 'block';
+                recordFailedAttempt();
+                errorMessage.textContent = 'Usuario o contraseña incorrectos';
+                document.getElementById('password').value = '';
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            showLogin();
+            loginForm.reset();
+            obraForm.reset();
+            taskForm.reset();
+            cancelTaskEdit();
+            cancelObraEdit();
+            errorMessage.style.display = 'none';
+            if(obrasListener) obrasListener();
+            stopSessionCheck();
+        }
+
+        function showApp() {
+            loginScreen.style.display = 'none';
+            appScreen.style.display = 'block';
+            if(loggedUserSpan) loggedUserSpan.textContent = currentUser;
+        }
+        function showLogin() {
+            loginScreen.style.display = 'flex';
+            appScreen.style.display = 'none';
+            selectedObraId = null;
+            renderObraDetails();
+        }
+
+        // ================= CRUD OBRAS (UI) =================
+        function editObra(obraId) {
+            const obra = obras.find(o=>o.id===obraId);
+            if(!obra) return;
+            isEditingObra = true;
+            editingObraIdInput.value = obraId;
+            obraFormTitle.innerHTML = '<i class="fas fa-edit"></i> Editar Obra';
+            submitObraBtn.textContent = 'Actualizar Obra';
+            cancelObraEditBtn.style.display = 'block';
+            document.getElementById('obraNombre').value = obra.nombre;
+            document.getElementById('obraUbicacion').value = obra.ubicacion;
+            document.getElementById('obraDescripcion').value = obra.descripcion||'';
+            document.getElementById('obraCliente').value = obra.cliente;
+            document.getElementById('obraFechaInicio').value = obra.fechaInicio;
+            document.getElementById('obraFechaFin').value = obra.fechaFin||'';
+            document.getElementById('obraForm').scrollIntoView({behavior:'smooth'});
+        }
+        function cancelObraEdit() {
+            isEditingObra = false;
+            editingObraIdInput.value = '';
+            obraFormTitle.innerHTML = '<i class="fas fa-plus-circle"></i> Crear Nueva Obra';
+            submitObraBtn.textContent = 'Crear Obra';
+            cancelObraEditBtn.style.display = 'none';
+            obraForm.reset();
+        }
+        async function handleCreateObra(e) {
+            e.preventDefault();
+            const obraData = {
+                nombre: document.getElementById('obraNombre').value,
+                ubicacion: document.getElementById('obraUbicacion').value,
+                descripcion: document.getElementById('obraDescripcion').value,
+                cliente: document.getElementById('obraCliente').value,
+                fechaInicio: document.getElementById('obraFechaInicio').value,
+                fechaFin: document.getElementById('obraFechaFin').value || null,
+                estado: 'activa',
+                tareas: [],
+                creadaPor: currentUser,
+                fechaCreacion: new Date().toISOString()
+            };
+            const obraId = editingObraIdInput.value;
+            if(isEditingObra && obraId) {
+                const idx = obras.findIndex(o=>o.id===obraId);
+                if(idx!==-1) {
+                    obraData.estado = obras[idx].estado;
+                    obraData.tareas = obras[idx].tareas;
+                    obraData.creadaPor = obras[idx].creadaPor;
+                    obraData.fechaCreacion = obras[idx].fechaCreacion;
+                    obraData.id = obraId;
+                    await saveObraToFirebase(obraData, false);
+                    if(selectedObraId === obraId) renderObraDetails();
+                }
+            } else {
+                const newId = await saveObraToFirebase(obraData, true);
+                if(newId) selectObra(newId);
+            }
+            obraForm.reset();
+            cancelObraEdit();
+        }
+        async function toggleObraEstado(obraId) {
+            const obra = obras.find(o=>o.id===obraId);
+            if(obra) {
+                obra.estado = obra.estado==='activa' ? 'completada' : 'activa';
+                await saveObraToFirebase(obra, false);
+            }
+        }
+        async function deleteObra(obraId) {
+            if(confirm('¿Eliminar esta obra? No se puede deshacer.')) {
+                await deleteObraFromFirebase(obraId);
+                if(selectedObraId === obraId) { selectedObraId = null; renderObraDetails(); }
+            }
+        }
+
+        // ================= TAREAS =================
+        function setTaskType(type) {
+            currentTaskType = type;
+            if(taskTypeInput) taskTypeInput.value = type;
+            btnPrimaryTask.classList.toggle('active', type==='primary');
+            btnSecondaryTask.classList.toggle('active', type==='secondary');
+            const parentContainer = document.getElementById('parentTaskContainer');
+            if(type==='secondary') {
+                if(selectedParentTaskId) {
+                    document.getElementById('parentTaskIndicator')?.style.setProperty('display','flex');
+                    if(parentContainer) parentContainer.style.display = 'none';
+                } else {
+                    if(parentContainer) parentContainer.style.display = 'block';
+                    const ind = document.getElementById('parentTaskIndicator');
+                    if(ind) ind.style.display = 'none';
+                }
+            } else {
+                if(parentContainer) parentContainer.style.display = 'none';
+                const ind = document.getElementById('parentTaskIndicator');
+                if(ind) ind.style.display = 'none';
+                selectedParentTaskId = null;
+            }
+            if(type==='secondary' && selectedObraId) loadParentTasks();
+        }
+
+        function loadParentTasks() {
+            const obra = obras.find(o=>o.id===selectedObraId);
+            if(!obra || !parentTaskSelect) return;
+            const primarias = obra.tareas.filter(t=>t.tipo==='primary');
+            let html = '<option value="">Selecciona una tarea principal</option>';
+            primarias.forEach(t => { html += `<option value="${t.id}">${t.nombre}</option>`; });
+            parentTaskSelect.innerHTML = html;
+            if(selectedParentTaskId) parentTaskSelect.value = selectedParentTaskId;
+        }
+
+        async function addNewTask(obra) {
+            const task = {
+                id: Date.now().toString(),
+                tipo: currentTaskType,
+                nombre: document.getElementById('taskNombre').value,
+                descripcion: document.getElementById('taskDescripcion').value,
+                responsable: document.getElementById('taskResponsable').value,
+                fecha: document.getElementById('taskFecha').value || getCurrentDate(),
+                completada: false,
+                fechaCreacion: new Date().toISOString()
+            };
+            if(currentTaskType === 'secondary') {
+                task.parentId = selectedParentTaskId || parentTaskSelect.value;
+                if(!task.parentId) { alert('Debes seleccionar una tarea principal'); return; }
+            }
+            obra.tareas.push(task);
+            await saveObraToFirebase(obra, false);
+            taskForm.reset();
+            selectedParentTaskId = null;
+            document.getElementById('parentTaskIndicator')?.style.setProperty('display','none');
+            document.getElementById('taskFecha').value = getCurrentDate();
+            setTaskType('primary');
+            renderObraDetails();
+        }
+
+        async function updateTask(obra) {
+            const taskId = editingTaskIdInput.value;
+            const idx = obra.tareas.findIndex(t=>t.id===taskId);
+            if(idx===-1) { cancelTaskEdit(); return; }
+            obra.tareas[idx].tipo = currentTaskType;
+            obra.tareas[idx].nombre = document.getElementById('taskNombre').value;
+            obra.tareas[idx].descripcion = document.getElementById('taskDescripcion').value;
+            obra.tareas[idx].responsable = document.getElementById('taskResponsable').value;
+            obra.tareas[idx].fecha = document.getElementById('taskFecha').value;
+            if(currentTaskType === 'secondary') {
+                obra.tareas[idx].parentId = selectedParentTaskId || parentTaskSelect.value;
+                if(!obra.tareas[idx].parentId) { alert('Debes seleccionar una tarea principal'); return; }
+            } else {
+                obra.tareas[idx].parentId = null;
+            }
+            await saveObraToFirebase(obra, false);
+            cancelTaskEdit();
+        }
+
+        async function handleAddOrUpdateTask(e) {
+            e.preventDefault();
+            if(!selectedObraId) return;
+            const obra = obras.find(o=>o.id===selectedObraId);
+            if(!obra) return;
+            if(isEditingTask) await updateTask(obra);
+            else await addNewTask(obra);
+            renderObraDetails();
+        }
+
+        function editTask(obraId, taskId) {
+            const obra = obras.find(o=>o.id===obraId);
+            if(!obra) return;
+            const task = obra.tareas.find(t=>t.id===taskId);
+            if(!task) return;
+            isEditingTask = true;
+            editingTaskIdInput.value = taskId;
+            formTitle.innerHTML = '<i class="fas fa-edit"></i> Editar Tarea';
+            editModeBadge.style.display = 'block';
+            submitTaskBtn.textContent = 'Actualizar Tarea';
+            cancelEditBtn.style.display = 'block';
+            setTaskType(task.tipo);
+            document.getElementById('taskNombre').value = task.nombre;
+            document.getElementById('taskDescripcion').value = task.descripcion||'';
+            document.getElementById('taskResponsable').value = task.responsable||'';
+            document.getElementById('taskFecha').value = task.fecha||getCurrentDate();
+            if(task.tipo==='secondary' && task.parentId) {
+                selectedParentTaskId = task.parentId;
+                loadParentTasks();
+                const parent = obra.tareas.find(t=>t.id===task.parentId);
+                const parentName = parent ? parent.nombre : 'Tarea principal';
+                const parentIndicator = document.getElementById('parentTaskIndicator');
+                const parentNameSpan = document.getElementById('parentTaskName');
+                if(parentIndicator && parentNameSpan) {
+                    parentNameSpan.textContent = parentName;
+                    parentIndicator.style.display = 'flex';
+                }
+                document.getElementById('parentTaskContainer').style.display = 'none';
+                setTimeout(()=>{ if(parentTaskSelect) parentTaskSelect.value = task.parentId; },100);
+            }
+            taskFormContainer.scrollIntoView({behavior:'smooth'});
+        }
+
+        function cancelTaskEdit() {
+            isEditingTask = false;
+            editingTaskIdInput.value = '';
+            selectedParentTaskId = null;
+            formTitle.innerHTML = '<i class="fas fa-plus"></i> Agregar Tarea';
+            editModeBadge.style.display = 'none';
+            submitTaskBtn.textContent = 'Agregar Tarea';
+            cancelEditBtn.style.display = 'none';
+            document.getElementById('parentTaskIndicator')?.style.setProperty('display','none');
+            taskForm.reset();
+            document.getElementById('taskFecha').value = getCurrentDate();
+            setTaskType('primary');
+        }
+
+        async function toggleTask(obraId, taskId) {
+            const obra = obras.find(o=>o.id===obraId);
+            if(obra) {
+                const task = obra.tareas.find(t=>t.id===taskId);
+                if(task) {
+                    task.completada = !task.completada;
+                    await saveObraToFirebase(obra, false);
+                    renderObraDetails();
+                }
+            }
+        }
+
+        async function deleteTask(obraId, taskId) {
+            if(!confirm('¿Eliminar esta tarea?')) return;
+            const obra = obras.find(o=>o.id===obraId);
+            if(obra) {
+                const task = obra.tareas.find(t=>t.id===taskId);
+                if(task && task.tipo==='primary') {
+                    obra.tareas = obra.tareas.filter(t=>t.parentId!==taskId);
+                }
+                obra.tareas = obra.tareas.filter(t=>t.id!==taskId);
+                await saveObraToFirebase(obra, false);
+                if(isEditingTask && editingTaskIdInput.value===taskId) cancelTaskEdit();
+                renderObraDetails();
+            }
+        }
+
+        function addSubtaskFromTask(obraId, taskId) {
+            const obra = obras.find(o=>o.id===obraId);
+            if(!obra) return;
+            const parent = obra.tareas.find(t=>t.id===taskId);
+            if(!parent) return;
+            selectedParentTaskId = taskId;
+            setTaskType('secondary');
+            loadParentTasks();
+            if(parentTaskSelect) parentTaskSelect.value = taskId;
+            const parentIndicator = document.getElementById('parentTaskIndicator');
+            const parentNameSpan = document.getElementById('parentTaskName');
+            if(parentIndicator && parentNameSpan) {
+                parentNameSpan.textContent = parent.nombre;
+                parentIndicator.style.display = 'flex';
+            }
+            document.getElementById('parentTaskContainer').style.display = 'none';
+            taskFormContainer.scrollIntoView({behavior:'smooth'});
+            document.getElementById('taskNombre').focus();
+        }
+
+        // ================= RENDERIZADO =================
+        function renderObras() {
+            const loading = document.getElementById('loadingObras');
+            if(loading) loading.style.display = 'none';
+            if(obras.length===0) {
+                obrasList.innerHTML = '<div class="empty-message">No hay obras creadas aún. ¡Crea tu primera obra!</div>';
+                return;
+            }
+            let html = '';
+            obras.forEach(obra => {
+                const total = obra.tareas.length;
+                const completadas = obra.tareas.filter(t=>t.completada).length;
+                const progress = total>0 ? Math.round((completadas/total)*100) : 0;
+                html += `<div class="obra-item">
+                            <div class="obra-header"><div class="obra-title">${obra.nombre}</div><div class="obra-status ${obra.estado}">${obra.estado==='activa'?'En progreso':'Completada'}</div></div>
+                            <div class="obra-description">${obra.descripcion||''}</div>
+                            <div class="obra-details"><div><i class="fas fa-map-marker-alt"></i> ${obra.ubicacion}</div><div><i class="fas fa-user-tie"></i> ${obra.cliente}</div><div><i class="fas fa-calendar-alt"></i> Inicio: ${formatDate(obra.fechaInicio)}</div><div><i class="fas fa-tasks"></i> ${total} tareas (${progress}% completado)</div></div>
+                            <div class="obra-actions">
+                                <button class="action-btn btn-primary" onclick="window.selectObra('${obra.id}')"><i class="fas fa-eye"></i> Ver</button>
+                                <button class="action-btn btn-info" onclick="window.showSummary('${obra.id}')"><i class="fas fa-chart-pie"></i> Resumen</button>
+                                <button class="action-btn btn-edit" onclick="window.editObra('${obra.id}')"><i class="fas fa-edit"></i> Editar</button>
+                                <button class="action-btn ${obra.estado==='activa'?'btn-success':'btn-warning'}" onclick="window.toggleObraEstado('${obra.id}')">${obra.estado==='activa'?'Completar':'Reactivar'}</button>
+                                <button class="action-btn btn-danger" onclick="window.deleteObra('${obra.id}')"><i class="fas fa-trash"></i> Eliminar</button>
+                            </div>
+                        </div>`;
+            });
+            obrasList.innerHTML = html;
+        }
+
+        function renderObraDetails() {
+            if(!selectedObraId) {
+                selectedObraTitle.innerHTML = '<i class="fas fa-tasks"></i> Tareas de la Obra';
+                selectedObraContent.innerHTML = '<div class="no-obra-selected"><i class="fas fa-clipboard-list"></i><h3>No hay obra seleccionada</h3></div>';
+                taskFormContainer.style.display = 'none';
+                return;
+            }
+            const obra = obras.find(o=>o.id===selectedObraId);
+            if(!obra) { selectedObraId=null; renderObraDetails(); return; }
+            selectedObraTitle.innerHTML = `<i class="fas fa-tasks"></i> Tareas: ${obra.nombre}`;
+            taskFormContainer.style.display = 'block';
+            let html = `<div class="obra-details"><div><strong>Descripción:</strong> ${obra.descripcion||'Sin descripción'}</div><div><strong>Ubicación:</strong> ${obra.ubicacion}</div><div><strong>Cliente:</strong> ${obra.cliente}</div></div><div class="task-list">`;
+            if(obra.tareas.length===0) html += '<div class="empty-message">No hay tareas. Agrega la primera.</div>';
+            else {
+                const primarias = obra.tareas.filter(t=>t.tipo==='primary');
+                const secundarias = obra.tareas.filter(t=>t.tipo==='secondary');
+                primarias.forEach(prim => {
+                    const secs = secundarias.filter(s=>s.parentId===prim.id);
+                    html += `<div class="task-item">
+                                <div class="task-header"><div class="task-title">${prim.nombre}</div><div class="task-status ${prim.completada?'completed':''}">${prim.completada?'Completada':'Pendiente'}</div></div>
+                                <div class="task-details"><div><i class="fas fa-user"></i> ${prim.responsable||'Sin responsable'}</div><div><i class="fas fa-calendar"></i> ${formatDate(prim.fecha)}</div></div>
+                                <div class="task-actions">
+                                    <button class="action-btn btn-success" onclick="window.toggleTask('${obra.id}','${prim.id}')">${prim.completada?'Desmarcar':'Completar'}</button>
+                                    <button class="action-btn btn-edit" onclick="window.editTask('${obra.id}','${prim.id}')">Editar</button>
+                                    <button class="action-btn btn-subtask" onclick="window.addSubtaskFromTask('${obra.id}','${prim.id}')">Subtarea</button>
+                                    <button class="action-btn btn-danger" onclick="window.deleteTask('${obra.id}','${prim.id}')">Eliminar</button>
+                                </div>
+                            </div>`;
+                    secs.forEach(sec => {
+                        html += `<div class="task-item secondary">
+                                    <div class="task-header"><div class="task-title">↳ ${sec.nombre}</div><div class="task-status ${sec.completada?'completed':''}">${sec.completada?'Completada':'Pendiente'}</div></div>
+                                    <div class="task-details"><div><i class="fas fa-user"></i> ${sec.responsable||'Sin responsable'}</div><div><i class="fas fa-calendar"></i> ${formatDate(sec.fecha)}</div></div>
+                                    <div class="task-actions">
+                                        <button class="action-btn btn-success" onclick="window.toggleTask('${obra.id}','${sec.id}')">${sec.completada?'Desmarcar':'Completar'}</button>
+                                        <button class="action-btn btn-edit" onclick="window.editTask('${obra.id}','${sec.id}')">Editar</button>
+                                        <button class="action-btn btn-danger" onclick="window.deleteTask('${obra.id}','${sec.id}')">Eliminar</button>
+                                    </div>
+                                </div>`;
+                    });
+                });
+            }
+            html += `</div>`;
+            selectedObraContent.innerHTML = html;
+        }
+
+        function selectObra(obraId) { selectedObraId = obraId; renderObraDetails(); }
+
+        // ================= RESUMEN SIMPLE =================
+        function showSummary(obraId) {
+            const obra = obras.find(o=>o.id===obraId);
+            if(!obra) return;
+            let html = `<h3>${obra.nombre}</h3><p>Ubicación: ${obra.ubicacion}<br>Cliente: ${obra.cliente}</p>`;
+            html += `<h4>Tareas:</h4><ul>`;
+            obra.tareas.forEach(t => { html += `<li>${t.nombre} - ${t.completada?'✔️':'⏳'}</li>`; });
+            html += `</ul>`;
+            document.getElementById('summaryContent').innerHTML = html;
+            summaryModal.style.display = 'flex';
+        }
+        function exportToTxt() { alert('Función exportar simplificada'); }
+        function copyToClip() { alert('Copiar simplificado'); }
+
+        // ================= INICIALIZACIÓN =================
+        function initApp() {
+            console.log('Iniciando aplicación...');
+            if(checkLockout()) {
+                if(attemptsWarning) attemptsWarning.style.display = 'block';
+                return;
+            }
+            const savedUser = localStorage.getItem('currentUser');
+            if(savedUser && savedUser === validCredentials.username) {
+                currentUser = savedUser;
+                showApp();
+                resetFailedAttempts();
+                startSessionCheck();
+                // Verificar versión una vez al inicio
+                checkAndForceLogout();
+            } else {
+                if(failedAttempts > 0 && attemptsWarning) {
+                    const left = maxAttempts - failedAttempts;
+                    if(left > 0) { attemptsLeftSpan.textContent = left; attemptsWarning.style.display = 'block'; }
+                }
+            }
+            // Eventos
+            loginForm.addEventListener('submit', handleLogin);
+            logoutBtn.addEventListener('click', handleLogout);
+            obraForm.addEventListener('submit', handleCreateObra);
+            taskForm.addEventListener('submit', handleAddOrUpdateTask);
+            btnPrimaryTask.addEventListener('click', ()=>setTaskType('primary'));
+            btnSecondaryTask.addEventListener('click', ()=>setTaskType('secondary'));
+            if(closeModal) closeModal.addEventListener('click', ()=>summaryModal.style.display='none');
+            if(exportTxtBtn) exportTxtBtn.addEventListener('click', exportToTxt);
+            if(copyToClipboardBtn) copyToClipboardBtn.addEventListener('click', copyToClip);
+            if(cancelEditBtn) cancelEditBtn.addEventListener('click', cancelTaskEdit);
+            if(cancelObraEditBtn) cancelObraEditBtn.addEventListener('click', cancelObraEdit);
+            document.getElementById('taskFecha').value = getCurrentDate();
+            summaryModal.addEventListener('click', (e) => { if(e.target === summaryModal) summaryModal.style.display = 'none'; });
+            loadObrasFromFirebase();
+        }
+
+        // Exponer funciones globales
+        window.selectObra = selectObra;
+        window.toggleObraEstado = toggleObraEstado;
+        window.deleteObra = deleteObra;
+        window.toggleTask = toggleTask;
+        window.deleteTask = deleteTask;
+        window.editTask = editTask;
+        window.showSummary = showSummary;
+        window.addSubtaskFromTask = addSubtaskFromTask;
+        window.editObra = editObra;
+
+        // Iniciar cuando el DOM esté listo
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
+        else initApp();
+    </script>
+</body>
+</html>

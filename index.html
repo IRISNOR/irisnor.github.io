@@ -1622,12 +1622,14 @@
                 return;
             }
             const savedUser = localStorage.getItem('currentUser');
-            if(savedUser && savedUser === validCredentials.username) {
-                currentUser = savedUser;
-                showApp();
-                resetFailedAttempts();
-                startSessionCheck();
-                // NO llamamos a checkAndForceLogout aquí para no interferir
+            if (savedUser && savedUser === validCredentials.username) {
+    currentUser = savedUser;
+    showApp();
+    resetFailedAttempts();
+    startSessionCheck();
+    // Verificar versión inmediatamente al cargar
+    checkAndForceLogout();
+}
             } else {
                 if(failedAttempts > 0 && attemptsWarning) {
                     const left = maxAttempts - failedAttempts;
